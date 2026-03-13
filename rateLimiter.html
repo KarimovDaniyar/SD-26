@@ -1,0 +1,1007 @@
+
+<!-- 
+Rate Limiter Algorithms — visualization of Token Bucket, Leaky Bucket, Fixed Window, Sliding Log, and Sliding Counter algorithms with Python code snippets and live simulation. Click "Send Request" to see each in action.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rate Limiter Algorithms</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --bg: #0a0b0f;
+    --surface: #12141a;
+    --surface2: #1a1d26;
+    --border: #2a2d3a;
+    --text: #e8eaf0;
+    --muted: #5a5f75;
+    --accent: #6c63ff;
+    --green: #2dd4a0;
+    --red: #ff5f6d;
+    --amber: #f5a623;
+    --blue: #4fa3e3;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  h1 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .2em;
+    text-align: center;
+    margin-bottom: .4rem;
+    font-family: var(--mono);
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: .85rem;
+    margin-bottom: 2.5rem;
+    font-family: var(--mono);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(580px, 1fr));
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .card-header {
+    padding: .8rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    background: var(--surface2);
+  }
+
+  .algo-name {
+    font-family: var(--mono);
+    font-size: .85rem;
+    font-weight: 700;
+    flex: 1;
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: .65rem;
+    padding: .2rem .6rem;
+    border-radius: 20px;
+    background: rgba(108,99,255,.15);
+    color: var(--accent);
+    border: 1px solid rgba(108,99,255,.3);
+  }
+
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    flex: 1;
+  }
+
+  /* VISUALIZATION PANEL */
+  .viz {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    min-height: 130px;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+  }
+
+  .viz-row {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    font-family: var(--mono);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+
+  .viz-label {
+    width: 80px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  /* Token bucket tokens */
+  .tokens-track {
+    flex: 1;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+    flex-wrap: wrap;
+    min-height: 28px;
+  }
+
+  .token {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: all .3s ease;
+    box-shadow: 0 0 6px rgba(108,99,255,.4);
+    flex-shrink: 0;
+  }
+
+  .token.consumed {
+    background: transparent;
+    border: 1px solid var(--border);
+    box-shadow: none;
+  }
+
+  /* Bar */
+  .bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .3s ease;
+    background: var(--green);
+  }
+
+  .bar-fill.warn { background: var(--amber); }
+  .bar-fill.danger { background: var(--red); }
+
+  /* Timeline */
+  .timeline {
+    flex: 1;
+    height: 28px;
+    background: var(--surface2);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .tick {
+    position: absolute;
+    width: 3px;
+    height: 100%;
+    border-radius: 1px;
+    transition: all .2s;
+  }
+
+  .tick.allowed { background: var(--green); }
+  .tick.denied { background: var(--red); }
+  .tick.expired { background: var(--border); }
+
+  /* Window */
+  .window-vis {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .win-box {
+    flex: 1;
+    height: 48px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: .75rem;
+    position: relative;
+    transition: all .3s;
+  }
+
+  .win-box.active {
+    border-color: var(--accent);
+    background: rgba(108,99,255,.07);
+  }
+
+  .win-count {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .win-label {
+    font-size: .6rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .win-separator {
+    width: 2px;
+    height: 40px;
+    background: var(--red);
+    border-radius: 1px;
+    flex-shrink: 0;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .win-separator.show { opacity: 1; }
+
+  /* Status flash */
+  .status-bar {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    padding: .5rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: .72rem;
+    min-height: 34px;
+  }
+
+  .status-pill {
+    padding: .2rem .6rem;
+    border-radius: 20px;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    transition: all .2s;
+  }
+
+  .status-pill.allowed {
+    background: rgba(45,212,160,.15);
+    color: var(--green);
+    border: 1px solid rgba(45,212,160,.3);
+  }
+
+  .status-pill.denied {
+    background: rgba(255,95,109,.15);
+    color: var(--red);
+    border: 1px solid rgba(255,95,109,.3);
+  }
+
+  .status-msg { color: var(--muted); }
+
+  /* Stats */
+  .stats {
+    display: flex;
+    gap: 1rem;
+    padding: .5rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat { font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+  .stat span { color: var(--text); font-weight: 500; }
+
+  /* CODE */
+  .code-panel {
+    padding: 1rem 1.2rem;
+    font-family: var(--mono);
+    font-size: .72rem;
+    line-height: 1.7;
+    color: #8892b0;
+    overflow-x: auto;
+    flex: 1;
+    background: #0d0e13;
+  }
+
+  .code-panel .kw   { color: #c678dd; }
+  .code-panel .fn   { color: #61afef; }
+  .code-panel .str  { color: #98c379; }
+  .code-panel .num  { color: #d19a66; }
+  .code-panel .cm   { color: #4a4f63; font-style: italic; }
+  .code-panel .cls  { color: #e5c07b; }
+  .code-panel .self { color: #e06c75; }
+
+  /* Controls */
+  .controls {
+    padding: .8rem 1.2rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    background: var(--surface2);
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: var(--mono);
+    font-size: .72rem;
+    padding: .4rem .9rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+  }
+
+  button:hover { border-color: var(--accent); color: var(--accent); }
+
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  button.primary:hover { background: #574fd6; }
+
+  .ctrl-label {
+    font-family: var(--mono);
+    font-size: .7rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* Queue visualization (leaky) */
+  .queue-vis {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    align-items: flex-end;
+    height: 36px;
+    overflow: hidden;
+  }
+
+  .queue-item {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: var(--blue);
+    flex-shrink: 0;
+    animation: slideIn .2s ease;
+    box-shadow: 0 0 5px rgba(79,163,227,.3);
+  }
+
+  @keyframes slideIn {
+    from { transform: translateY(-20px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes drip {
+    0%   { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(20px); opacity: 0; }
+  }
+
+  .queue-item.dripping { animation: drip .35s ease forwards; }
+
+  /* Sliding counter blend vis */
+  .blend-vis {
+    flex: 1;
+    height: 48px;
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface2);
+  }
+
+  .blend-prev {
+    position: absolute;
+    left: 0; top: 0; height: 100%;
+    background: rgba(108,99,255,.25);
+    transition: width .4s ease;
+    border-right: 1px dashed rgba(108,99,255,.4);
+  }
+
+  .blend-cur {
+    position: absolute;
+    right: 0; top: 0; height: 100%;
+    background: rgba(45,212,160,.2);
+    transition: width .4s ease;
+    border-left: 1px dashed rgba(45,212,160,.4);
+  }
+
+  .blend-window {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    height: 70%;
+    background: rgba(245,166,35,.12);
+    border: 1px solid rgba(245,166,35,.35);
+    border-radius: 3px;
+    transition: left .4s ease, width .4s ease;
+  }
+
+  .blend-label {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: .62rem;
+    color: var(--muted);
+    top: 50%; transform: translateY(-50%);
+  }
+</style>
+</head>
+<body>
+
+<h1>Rate Limiter Algorithms</h1>
+<p class="subtitle">Python implementations + live simulation — click "Send Request" to see each in action</p>
+
+<div class="grid" id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  PYTHON CODE SNIPPETS
+// ═══════════════════════════════════════════════
+
+const PY = {
+  token: `<span class="kw">import</span> time
+
+<span class="kw">class</span> <span class="cls">TokenBucket</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, capacity, rate):
+        <span class="self">self</span>.capacity = capacity   <span class="cm"># max tokens</span>
+        <span class="self">self</span>.rate     = rate        <span class="cm"># tokens / second</span>
+        <span class="self">self</span>.tokens   = capacity    <span class="cm"># start full</span>
+        <span class="self">self</span>.last     = time.time()
+
+    <span class="kw">def</span> <span class="fn">allow</span>(<span class="self">self</span>):
+        now   = time.time()
+        delta = now - <span class="self">self</span>.last
+        <span class="cm"># refill tokens since last check</span>
+        <span class="self">self</span>.tokens = min(
+            <span class="self">self</span>.capacity,
+            <span class="self">self</span>.tokens + delta * <span class="self">self</span>.rate
+        )
+        <span class="self">self</span>.last = now
+        <span class="kw">if</span> <span class="self">self</span>.tokens &gt;= <span class="num">1</span>:
+            <span class="self">self</span>.tokens -= <span class="num">1</span>
+            <span class="kw">return</span> <span class="num">True</span>
+        <span class="kw">return</span> <span class="num">False</span>`,
+
+  leaky: `<span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="kw">class</span> <span class="cls">LeakyBucket</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, capacity, rate):
+        <span class="self">self</span>.capacity = capacity   <span class="cm"># max queue size</span>
+        <span class="self">self</span>.rate     = rate        <span class="cm"># requests / second out</span>
+        <span class="self">self</span>.queue    = deque()
+        <span class="self">self</span>.last     = time.time()
+
+    <span class="kw">def</span> <span class="fn">allow</span>(<span class="self">self</span>):
+        now = time.time()
+        <span class="cm"># drain processed requests</span>
+        leaked = (now - <span class="self">self</span>.last) * <span class="self">self</span>.rate
+        <span class="kw">for</span> _ <span class="kw">in</span> range(int(leaked)):
+            <span class="kw">if</span> <span class="self">self</span>.queue: <span class="self">self</span>.queue.popleft()
+        <span class="self">self</span>.last = now
+        <span class="kw">if</span> len(<span class="self">self</span>.queue) &lt; <span class="self">self</span>.capacity:
+            <span class="self">self</span>.queue.append(now)
+            <span class="kw">return</span> <span class="num">True</span>
+        <span class="kw">return</span> <span class="num">False</span>`,
+
+  fixed: `<span class="kw">import</span> time
+
+<span class="kw">class</span> <span class="cls">FixedWindowCounter</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, limit, window):
+        <span class="self">self</span>.limit   = limit    <span class="cm"># max requests</span>
+        <span class="self">self</span>.window  = window   <span class="cm"># seconds</span>
+        <span class="self">self</span>.count   = <span class="num">0</span>
+        <span class="self">self</span>.start   = time.time()
+
+    <span class="kw">def</span> <span class="fn">allow</span>(<span class="self">self</span>):
+        now = time.time()
+        <span class="cm"># reset if window expired</span>
+        <span class="kw">if</span> now - <span class="self">self</span>.start &gt;= <span class="self">self</span>.window:
+            <span class="self">self</span>.count = <span class="num">0</span>
+            <span class="self">self</span>.start = now
+        <span class="kw">if</span> <span class="self">self</span>.count &lt; <span class="self">self</span>.limit:
+            <span class="self">self</span>.count += <span class="num">1</span>
+            <span class="kw">return</span> <span class="num">True</span>
+        <span class="kw">return</span> <span class="num">False</span>`,
+
+  slidelog: `<span class="kw">import</span> time
+<span class="kw">from</span> collections <span class="kw">import</span> deque
+
+<span class="kw">class</span> <span class="cls">SlidingWindowLog</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, limit, window):
+        <span class="self">self</span>.limit  = limit    <span class="cm"># max requests</span>
+        <span class="self">self</span>.window = window   <span class="cm"># seconds</span>
+        <span class="self">self</span>.log    = deque()  <span class="cm"># timestamps</span>
+
+    <span class="kw">def</span> <span class="fn">allow</span>(<span class="self">self</span>):
+        now    = time.time()
+        cutoff = now - <span class="self">self</span>.window
+        <span class="cm"># evict expired timestamps</span>
+        <span class="kw">while</span> <span class="self">self</span>.log <span class="kw">and</span> <span class="self">self</span>.log[<span class="num">0</span>] &lt; cutoff:
+            <span class="self">self</span>.log.popleft()
+        <span class="kw">if</span> len(<span class="self">self</span>.log) &lt; <span class="self">self</span>.limit:
+            <span class="self">self</span>.log.append(now)
+            <span class="kw">return</span> <span class="num">True</span>
+        <span class="kw">return</span> <span class="num">False</span>`,
+
+  slidecnt: `<span class="kw">import</span> time
+
+<span class="kw">class</span> <span class="cls">SlidingWindowCounter</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, limit, window):
+        <span class="self">self</span>.limit   = limit
+        <span class="self">self</span>.window  = window
+        <span class="self">self</span>.prev    = <span class="num">0</span>    <span class="cm"># prev window count</span>
+        <span class="self">self</span>.curr    = <span class="num">0</span>    <span class="cm"># curr window count</span>
+        <span class="self">self</span>.win_start = time.time()
+
+    <span class="kw">def</span> <span class="fn">allow</span>(<span class="self">self</span>):
+        now     = time.time()
+        elapsed = now - <span class="self">self</span>.win_start
+        <span class="kw">if</span> elapsed &gt;= <span class="self">self</span>.window * <span class="num">2</span>:
+            <span class="self">self</span>.prev, <span class="self">self</span>.curr = <span class="num">0</span>, <span class="num">0</span>
+            <span class="self">self</span>.win_start = now; elapsed = <span class="num">0</span>
+        <span class="kw">elif</span> elapsed &gt;= <span class="self">self</span>.window:
+            <span class="self">self</span>.prev = <span class="self">self</span>.curr; <span class="self">self</span>.curr = <span class="num">0</span>
+            <span class="self">self</span>.win_start += <span class="self">self</span>.window
+            elapsed -= <span class="self">self</span>.window
+        <span class="cm"># weighted blend of windows</span>
+        overlap = <span class="num">1</span> - elapsed / <span class="self">self</span>.window
+        estimate = <span class="self">self</span>.prev * overlap + <span class="self">self</span>.curr
+        <span class="kw">if</span> estimate &lt; <span class="self">self</span>.limit:
+            <span class="self">self</span>.curr += <span class="num">1</span>
+            <span class="kw">return</span> <span class="num">True</span>
+        <span class="kw">return</span> <span class="num">False</span>`
+};
+
+// ═══════════════════════════════════════════════
+//  STATE MACHINES (JS mirrors of Python logic)
+// ═══════════════════════════════════════════════
+
+class TokenBucket {
+  constructor(capacity=8, rate=1) {
+    this.capacity = capacity;
+    this.rate = rate;
+    this.tokens = capacity;
+    this.last = Date.now();
+    this.allowed = 0; this.denied = 0;
+  }
+  allow() {
+    const now = Date.now();
+    const delta = (now - this.last) / 1000;
+    this.tokens = Math.min(this.capacity, this.tokens + delta * this.rate);
+    this.last = now;
+    if (this.tokens >= 1) { this.tokens -= 1; this.allowed++; return true; }
+    this.denied++; return false;
+  }
+  refill() { this.tokens = Math.min(this.capacity, this.tokens + this.rate * 0.2); this.last = Date.now(); }
+}
+
+class LeakyBucket {
+  constructor(capacity=6, rate=0.8) {
+    this.capacity = capacity;
+    this.rate = rate;
+    this.queue = [];
+    this.last = Date.now();
+    this.allowed = 0; this.denied = 0;
+  }
+  allow() {
+    const now = Date.now();
+    const leaked = ((now - this.last) / 1000) * this.rate;
+    const drain = Math.floor(leaked);
+    for (let i = 0; i < drain; i++) if (this.queue.length) this.queue.shift();
+    this.last = now;
+    if (this.queue.length < this.capacity) { this.queue.push(now); this.allowed++; return true; }
+    this.denied++; return false;
+  }
+  tick() {
+    const now = Date.now();
+    const leaked = ((now - this.last) / 1000) * this.rate;
+    const drain = Math.floor(leaked);
+    for (let i = 0; i < drain; i++) if (this.queue.length) this.queue.shift();
+    if (drain > 0) this.last = now;
+  }
+}
+
+class FixedWindowCounter {
+  constructor(limit=5, window=8000) {
+    this.limit = limit;
+    this.window = window;
+    this.count = 0;
+    this.start = Date.now();
+    this.allowed = 0; this.denied = 0;
+    this.history = [];
+  }
+  allow() {
+    const now = Date.now();
+    if (now - this.start >= this.window) {
+      this.history.push({ count: this.count, at: this.start });
+      if (this.history.length > 3) this.history.shift();
+      this.count = 0; this.start = now;
+    }
+    if (this.count < this.limit) { this.count++; this.allowed++; return true; }
+    this.denied++; return false;
+  }
+  progress() { return Math.min(1, (Date.now() - this.start) / this.window); }
+}
+
+class SlidingWindowLog {
+  constructor(limit=5, window=8000) {
+    this.limit = limit;
+    this.window = window;
+    this.log = [];
+    this.allowed = 0; this.denied = 0;
+  }
+  allow() {
+    const now = Date.now();
+    const cutoff = now - this.window;
+    this.log = this.log.filter(t => t >= cutoff);
+    if (this.log.length < this.limit) { this.log.push(now); this.allowed++; return true; }
+    this.denied++; return false;
+  }
+  getLog() { return this.log; }
+}
+
+class SlidingWindowCounter {
+  constructor(limit=5, window=8000) {
+    this.limit = limit;
+    this.window = window;
+    this.prev = 0; this.curr = 0;
+    this.winStart = Date.now();
+    this.allowed = 0; this.denied = 0;
+  }
+  allow() {
+    const now = Date.now();
+    const elapsed = now - this.winStart;
+    if (elapsed >= this.window * 2) {
+      this.prev = 0; this.curr = 0; this.winStart = now;
+    } else if (elapsed >= this.window) {
+      this.prev = this.curr; this.curr = 0;
+      this.winStart += this.window;
+    }
+    const e = now - this.winStart;
+    const overlap = 1 - e / this.window;
+    const estimate = this.prev * overlap + this.curr;
+    if (estimate < this.limit) { this.curr++; this.allowed++; return true; }
+    this.denied++; return false;
+  }
+  getOverlap() {
+    const elapsed = Math.min(Date.now() - this.winStart, this.window);
+    return 1 - elapsed / this.window;
+  }
+  getPrevFrac() {
+    const elapsed = Date.now() - this.winStart;
+    return Math.min(1, elapsed / this.window);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  BUILD CARDS
+// ═══════════════════════════════════════════════
+
+const configs = [
+  {
+    id: 'token', name: 'Token Bucket',
+    badge: 'O(1) memory',
+    state: new TokenBucket(8, 0.7),
+    renderViz: renderTokenViz,
+    code: PY.token,
+    autoInterval: null,
+  },
+  {
+    id: 'leaky', name: 'Leaky Bucket',
+    badge: 'O(1) memory',
+    state: new LeakyBucket(6, 0.6),
+    renderViz: renderLeakyViz,
+    code: PY.leaky,
+    autoInterval: null,
+  },
+  {
+    id: 'fixed', name: 'Fixed Window Counter',
+    badge: 'O(1) memory',
+    state: new FixedWindowCounter(5, 10000),
+    renderViz: renderFixedViz,
+    code: PY.fixed,
+    autoInterval: null,
+  },
+  {
+    id: 'slidelog', name: 'Sliding Window Log',
+    badge: 'O(n) memory',
+    state: new SlidingWindowLog(5, 8000),
+    renderViz: renderSlideLogViz,
+    code: PY.slidelog,
+    autoInterval: null,
+  },
+  {
+    id: 'slidecnt', name: 'Sliding Window Counter',
+    badge: 'O(1) memory',
+    state: new SlidingWindowCounter(5, 8000),
+    renderViz: renderSlideCntViz,
+    code: PY.slidecnt,
+    autoInterval: null,
+  },
+];
+
+// ── build DOM ──
+const app = document.getElementById('app');
+configs.forEach(cfg => {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.id = `card-${cfg.id}`;
+  card.innerHTML = `
+    <div class="card-header">
+      <span class="algo-name">${cfg.name}</span>
+      <span class="badge">${cfg.badge}</span>
+    </div>
+    <div class="card-body">
+      <div class="viz" id="viz-${cfg.id}"></div>
+      <div class="status-bar" id="status-${cfg.id}">
+        <span class="status-msg" style="color:var(--muted);font-family:var(--mono);font-size:.72rem">Ready — send a request</span>
+      </div>
+      <div class="stats" id="stats-${cfg.id}">
+        <span class="stat">allowed: <span id="allowed-${cfg.id}">0</span></span>
+        <span class="stat">denied: <span id="denied-${cfg.id}">0</span></span>
+      </div>
+      <div class="code-panel">${cfg.code}</div>
+      <div class="controls">
+        <button class="primary" onclick="sendReq('${cfg.id}')">Send Request</button>
+        <button onclick="burstReq('${cfg.id}')">Burst ×5</button>
+        <button onclick="resetAlgo('${cfg.id}')">Reset</button>
+        <span class="ctrl-label" id="auto-label-${cfg.id}"></span>
+        <button id="auto-btn-${cfg.id}" onclick="toggleAuto('${cfg.id}')">▶ Auto</button>
+      </div>
+    </div>
+  `;
+  app.appendChild(card);
+  cfg.renderViz(cfg);
+});
+
+// ── Animation loop (token refill + leaky drain visuals) ──
+setInterval(() => {
+  configs.forEach(cfg => {
+    if (cfg.id === 'token') { cfg.state.refill(); cfg.renderViz(cfg); }
+    if (cfg.id === 'leaky') { cfg.state.tick(); cfg.renderViz(cfg); }
+    if (cfg.id === 'fixed') cfg.renderViz(cfg);
+    if (cfg.id === 'slidelog') cfg.renderViz(cfg);
+    if (cfg.id === 'slidecnt') cfg.renderViz(cfg);
+  });
+}, 300);
+
+// ═══════════════════════════════════════════════
+//  VIZ RENDERERS
+// ═══════════════════════════════════════════════
+
+function renderTokenViz(cfg) {
+  const s = cfg.state;
+  const el = document.getElementById(`viz-${cfg.id}`);
+  const filled = Math.floor(s.tokens);
+  let html = `
+    <div class="viz-row">
+      <span class="viz-label">tokens</span>
+      <div class="tokens-track">`;
+  for (let i = 0; i < s.capacity; i++) {
+    html += `<div class="token${i < filled ? '' : ' consumed'}"></div>`;
+  }
+  html += `</div><span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${s.tokens.toFixed(1)}/${s.capacity}</span></div>`;
+  html += `<div class="viz-row"><span class="viz-label">rate</span>
+    <span style="font-family:var(--mono);font-size:.75rem;color:var(--green)">+${s.rate} token/sec</span></div>`;
+  el.innerHTML = html;
+}
+
+function renderLeakyViz(cfg) {
+  const s = cfg.state;
+  const el = document.getElementById(`viz-${cfg.id}`);
+  const qLen = s.queue.length;
+  let html = `
+    <div class="viz-row">
+      <span class="viz-label">queue</span>
+      <div class="queue-vis">`;
+  for (let i = 0; i < qLen; i++) html += `<div class="queue-item"></div>`;
+  html += `</div>
+      <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${qLen}/${s.capacity}</span>
+    </div>
+    <div class="viz-row">
+      <span class="viz-label">drain</span>
+      <span style="font-family:var(--mono);font-size:.75rem;color:var(--blue)">${s.rate} req/sec ↓</span>
+    </div>
+    <div class="viz-row">
+      <span class="viz-label">usage</span>
+      <div class="bar-track">
+        <div class="bar-fill${qLen/s.capacity > .8?' danger':qLen/s.capacity>.5?' warn':''}" style="width:${(qLen/s.capacity)*100}%"></div>
+      </div>
+    </div>`;
+  el.innerHTML = html;
+}
+
+function renderFixedViz(cfg) {
+  const s = cfg.state;
+  const el = document.getElementById(`viz-${cfg.id}`);
+  const prog = s.progress();
+  const pct = (s.count / s.limit) * 100;
+  let html = `
+    <div class="viz-row">
+      <span class="viz-label">count</span>
+      <div class="bar-track">
+        <div class="bar-fill${pct>=100?' danger':pct>=80?' warn':''}" style="width:${pct}%"></div>
+      </div>
+      <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${s.count}/${s.limit}</span>
+    </div>
+    <div class="viz-row">
+      <span class="viz-label">window</span>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${prog*100}%;background:var(--amber);opacity:.6"></div>
+      </div>
+      <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${((1-prog)*(s.window/1000)).toFixed(1)}s left</span>
+    </div>
+    <div class="viz-row">
+      <span class="viz-label">windows</span>
+      <div class="window-vis">`;
+
+  const hist = s.history.slice(-2);
+  hist.forEach(h => {
+    const p = (h.count / s.limit) * 100;
+    html += `<div class="win-box">
+      <span class="win-count" style="color:var(--muted)">${h.count}</span>
+      <span class="win-label">prev</span>
+    </div>`;
+  });
+  html += `<div class="win-separator${hist.length ? ' show' : ''}"></div>`;
+  html += `<div class="win-box active">
+    <span class="win-count">${s.count}</span>
+    <span class="win-label">current</span>
+  </div></div></div>`;
+  el.innerHTML = html;
+}
+
+function renderSlideLogViz(cfg) {
+  const s = cfg.state;
+  const el = document.getElementById(`viz-${cfg.id}`);
+  const now = Date.now();
+  const log = s.getLog();
+  const winMs = s.window;
+
+  let html = `<div class="viz-row">
+    <span class="viz-label">log</span>
+    <div class="timeline" id="tl-${cfg.id}">`;
+
+  log.forEach(t => {
+    const age = now - t;
+    const pos = 100 - (age / winMs) * 100;
+    if (pos >= 0) {
+      html += `<div class="tick allowed" style="left:${pos}%"></div>`;
+    }
+  });
+
+  html += `</div>
+    <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${log.length}/${s.limit}</span>
+  </div>
+  <div class="viz-row">
+    <span class="viz-label">window</span>
+    <span style="font-family:var(--mono);font-size:.75rem;color:var(--blue)">sliding ${s.window/1000}s</span>
+  </div>
+  <div class="viz-row">
+    <span class="viz-label">usage</span>
+    <div class="bar-track">
+      <div class="bar-fill${log.length>=s.limit?' danger':log.length/s.limit>.7?' warn':''}" style="width:${(log.length/s.limit)*100}%"></div>
+    </div>
+  </div>`;
+  el.innerHTML = html;
+}
+
+function renderSlideCntViz(cfg) {
+  const s = cfg.state;
+  const el = document.getElementById(`viz-${cfg.id}`);
+  const overlap = s.getOverlap();
+  const prevFrac = s.getPrevFrac();
+  const estimate = Math.round((s.prev * overlap + s.curr) * 10) / 10;
+
+  let html = `<div class="viz-row">
+    <span class="viz-label">blend</span>
+    <div class="blend-vis">
+      <div class="blend-prev" style="width:50%"></div>
+      <div class="blend-cur" style="width:50%"></div>
+      <div class="blend-window" style="left:${(1-overlap)*50}%;width:${50+overlap*50}%"></div>
+      <span class="blend-label" style="left:12%;color:rgba(108,99,255,.7)">prev·${(overlap*100).toFixed(0)}%</span>
+      <span class="blend-label" style="right:8%;color:rgba(45,212,160,.7)">curr</span>
+    </div>
+  </div>
+  <div class="viz-row">
+    <span class="viz-label">prev</span>
+    <span style="font-family:var(--mono);font-size:.75rem;color:var(--accent)">${s.prev} × ${(overlap).toFixed(2)} = ${(s.prev*overlap).toFixed(1)}</span>
+  </div>
+  <div class="viz-row">
+    <span class="viz-label">estimate</span>
+    <div class="bar-track">
+      <div class="bar-fill${estimate>=s.limit?' danger':estimate/s.limit>.7?' warn':''}" style="width:${Math.min(100,(estimate/s.limit)*100)}%"></div>
+    </div>
+    <span style="font-family:var(--mono);font-size:.72rem;color:var(--muted);margin-left:.4rem">${estimate}/${s.limit}</span>
+  </div>`;
+  el.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+//  ACTIONS
+// ═══════════════════════════════════════════════
+
+function sendReq(id) {
+  const cfg = configs.find(c => c.id === id);
+  const result = cfg.state.allow();
+  cfg.renderViz(cfg);
+  showStatus(id, result, cfg.state);
+  updateStats(id, cfg.state);
+}
+
+function burstReq(id) {
+  let i = 0;
+  const iv = setInterval(() => {
+    sendReq(id);
+    if (++i >= 5) clearInterval(iv);
+  }, 120);
+}
+
+function resetAlgo(id) {
+  const cfg = configs.find(c => c.id === id);
+  const C = cfg.state.constructor;
+  const old = cfg.state;
+  if (id==='token')    cfg.state = new TokenBucket(old.capacity, old.rate);
+  if (id==='leaky')    cfg.state = new LeakyBucket(old.capacity, old.rate);
+  if (id==='fixed')    cfg.state = new FixedWindowCounter(old.limit, old.window);
+  if (id==='slidelog') cfg.state = new SlidingWindowLog(old.limit, old.window);
+  if (id==='slidecnt') cfg.state = new SlidingWindowCounter(old.limit, old.window);
+  cfg.renderViz(cfg);
+  document.getElementById(`status-${id}`).innerHTML =
+    `<span class="status-msg" style="color:var(--muted);font-family:var(--mono);font-size:.72rem">Reset — ready</span>`;
+  updateStats(id, cfg.state);
+}
+
+const autoIntervals = {};
+function toggleAuto(id) {
+  const btn = document.getElementById(`auto-btn-${id}`);
+  const lbl = document.getElementById(`auto-label-${id}`);
+  if (autoIntervals[id]) {
+    clearInterval(autoIntervals[id]);
+    autoIntervals[id] = null;
+    btn.textContent = '▶ Auto';
+    lbl.textContent = '';
+  } else {
+    btn.textContent = '⏹ Stop';
+    lbl.textContent = 'sending every 600ms';
+    autoIntervals[id] = setInterval(() => sendReq(id), 600);
+  }
+}
+
+function showStatus(id, allowed, state) {
+  const el = document.getElementById(`status-${id}`);
+  const pill = allowed
+    ? `<span class="status-pill allowed">✓ Allowed</span>`
+    : `<span class="status-pill denied">✗ Denied</span>`;
+  let msg = '';
+  if (id === 'token')    msg = allowed ? `${state.tokens.toFixed(1)} tokens remaining` : 'Bucket empty — wait for refill';
+  if (id === 'leaky')    msg = allowed ? `Queued (${state.queue.length}/${state.capacity})` : 'Queue full — request dropped';
+  if (id === 'fixed')    msg = allowed ? `${state.count}/${state.limit} in window` : 'Window limit reached';
+  if (id === 'slidelog') msg = allowed ? `${state.log.length}/${state.limit} in sliding window` : 'Sliding window full';
+  if (id === 'slidecnt') {
+    const ov = state.getOverlap();
+    const est = (state.prev * ov + state.curr).toFixed(1);
+    msg = allowed ? `Estimate: ${est}/${state.limit}` : `Estimate ${est} ≥ ${state.limit} — denied`;
+  }
+  el.innerHTML = `${pill}<span class="status-msg">${msg}</span>`;
+}
+
+function updateStats(id, state) {
+  document.getElementById(`allowed-${id}`).textContent = state.allowed;
+  document.getElementById(`denied-${id}`).textContent = state.denied;
+}
+</script>
+</body>
+</html>
